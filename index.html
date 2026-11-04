@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Steam / IGXE 起价走势与折扣</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--tx:#1b2330;--mu:#6b7686;--bd:#e2e6ec;--st:#2a6df4;--ig:#f08a00;--ds:#16a34a;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1520;--card:#18202e;--tx:#e8edf5;--mu:#8b97a9;--bd:#273146;--st:#6ea0ff;--ig:#ffb347;--ds:#4ade80}}
+:root[data-theme="dark"]{--bg:#0f1520;--card:#18202e;--tx:#e8edf5;--mu:#8b97a9;--bd:#273146;--st:#6ea0ff;--ig:#ffb347;--ds:#4ade80}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+main{max-width:920px;margin:0 auto;padding:16px}
+h1{font-size:20px;margin:4px 0 2px}.sub{color:var(--mu);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px;margin-bottom:14px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+button,input{font:inherit;color:var(--tx);background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:6px 12px}
+button{cursor:pointer}button.on{background:var(--st);color:#fff;border-color:var(--st)}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.kpi div{border:1px solid var(--bd);border-radius:10px;padding:8px 10px}.kpi b{display:block;font-size:20px}.kpi span{color:var(--mu);font-size:12px}
+.leg{font-size:12px;color:var(--mu);margin:0 0 4px}.leg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 4px 0 10px}
+svg{width:100%;height:auto;display:block}.sc{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}th,td{padding:6px 8px;text-align:right;border-bottom:1px solid var(--bd)}th:first-child,td:first-child{text-align:left}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.row input{width:120px}
+.note{color:var(--mu);font-size:12px}
+</style></head><body><main>
+<h1>Steam / IGXE 起价走势与折扣</h1>
+<div class="sub">折扣 = IGXE起价 ÷ Steam起价 × 1.15（每日0点数据）</div>
+<div class="tabs" id="tabs"></div>
+<div class="card"><div class="kpi" id="kpi"></div></div>
+<div class="card"><p class="leg">起价（¥）<i style="background:var(--st)"></i>Steam<i style="background:var(--ig)"></i>IGXE</p><div class="sc"><svg id="c1" viewBox="0 0 640 220"></svg></div></div>
+<div class="card"><p class="leg">折扣<i style="background:var(--ds)"></i>IGXE÷Steam×1.15</p><div class="sc"><svg id="c2" viewBox="0 0 640 200"></svg></div></div>
+<div class="card"><div class="sc"><table><thead><tr><th>日期</th><th>Steam</th><th>IGXE</th><th>折扣</th></tr></thead><tbody id="tb"></tbody></table></div></div>
+<div class="card">
+<div class="row"><b>导入 / 录入</b>
+<input type="file" id="f" accept=".json"><button id="ex">导出 JSON</button><button id="clr">清空本地数据</button></div>
+<div class="row" style="margin-top:10px"><input type="date" id="d"><input id="s" type="number" step="0.01" placeholder="Steam起价"><input id="g" type="number" step="0.01" placeholder="IGXE起价"><button id="add">保存当前物品当日</button></div>
+<p class="note">页面会自动读取仓库里的 data.json；下方导入/录入仅作临时补充，不会写回仓库。</p></div>
+</main>
+<script>
+var D={items:[{id:"nightmare",name:"梦魇武器箱",rows:[]},{id:"fever",name:"热潮武器箱",rows:[]}]},cur=0,K="igxe-steam-v1";
+try{var t=localStorage.getItem(K);if(t)D=JSON.parse(t)}catch(e){}
+function save(){try{localStorage.setItem(K,JSON.stringify(D))}catch(e){}}
+function disc(r){return r.steam>0&&r.igxe>0?r.igxe/r.steam*1.15:null}
+function f2(v){return v==null?"—":v.toFixed(2)}
+function line(svg,rows,ser,fmt){
+ var W=640,H=+svg.getAttribute("viewBox").split(" ")[3],p={l:44,r:12,t:10,b:24},o="";
+ var vs=[];ser.forEach(function(s){rows.forEach(function(r){var v=s.f(r);if(v!=null)vs.push(v)})});
+ if(!vs.length){svg.innerHTML='<text x="320" y="'+H/2+'" text-anchor="middle" fill="var(--mu)">暂无数据</text>';return}
+ var mn=Math.min.apply(0,vs),mx=Math.max.apply(0,vs);if(mn==mx){mn*=.95;mx*=1.05;if(mn==mx){mn-=1;mx+=1}}
+ var pd=(mx-mn)*.1;mn-=pd;mx+=pd;
+ var X=function(i){return p.l+(rows.length<2?(W-p.l-p.r)/2:i*(W-p.l-p.r)/(rows.length-1))},Y=function(v){return H-p.b-(v-mn)/(mx-mn)*(H-p.t-p.b)};
+ for(var k=0;k<=4;k++){var v=mn+(mx-mn)*k/4,y=Y(v);o+='<line x1="'+p.l+'" x2="'+(W-p.r)+'" y1="'+y+'" y2="'+y+'" stroke="var(--bd)"/><text x="'+(p.l-6)+'" y="'+(y+4)+'" text-anchor="end" font-size="11" fill="var(--mu)">'+fmt(v)+'</text>'}
+ var st=Math.max(1,Math.ceil(rows.length/7));
+ rows.forEach(function(r,i){if(i%st==0||i==rows.length-1)o+='<text x="'+X(i)+'" y="'+(H-6)+'" text-anchor="middle" font-size="11" fill="var(--mu)">'+r.date.slice(5)+'</text>'});
+ ser.forEach(function(s){var pts=[],dots="";rows.forEach(function(r,i){var v=s.f(r);if(v!=null){pts.push(X(i)+","+Y(v));dots+='<circle cx="'+X(i)+'" cy="'+Y(v)+'" r="3" fill="'+s.c+'"><title>'+r.date+" "+fmt(v)+'</title></circle>'}});
+  o+='<polyline fill="none" stroke="'+s.c+'" stroke-width="2" points="'+pts.join(" ")+'"/>'+dots});
+ svg.innerHTML=o}
+function render(){
+ var T=document.getElementById("tabs");T.innerHTML="";
+ D.items.forEach(function(it,i){var b=document.createElement("button");b.textContent=it.name;b.className=i==cur?"on":"";b.onclick=function(){cur=i;render()};T.appendChild(b)});
+ var it=D.items[cur],rows=it.rows.slice().sort(function(a,b){return a.date<b.date?-1:1}),L=rows[rows.length-1]||{},ds=rows.map(disc).filter(function(v){return v!=null});
+ var avg=ds.length?ds.reduce(function(a,b){return a+b})/ds.length:null;
+ document.getElementById("kpi").innerHTML=[["Steam起价","¥"+f2(L.steam)],["IGXE起价","¥"+f2(L.igxe)],["最新折扣",f2(disc(L))],["平均折扣",f2(avg)],["最低折扣",f2(ds.length?Math.min.apply(0,ds):null)]].map(function(x){return"<div><span>"+x[0]+"</span><b>"+x[1]+"</b></div>"}).join("");
+ line(document.getElementById("c1"),rows,[{c:"var(--st)",f:function(r){return r.steam}},{c:"var(--ig)",f:function(r){return r.igxe}}],function(v){return v.toFixed(2)});
+ line(document.getElementById("c2"),rows,[{c:"var(--ds)",f:disc}],function(v){return v.toFixed(3)});
+ document.getElementById("tb").innerHTML=rows.slice().reverse().map(function(r){return"<tr><td>"+r.date+"</td><td>"+f2(r.steam)+"</td><td>"+f2(r.igxe)+"</td><td>"+f2(disc(r))+"</td></tr>"}).join("")||'<tr><td colspan="4" class="note">暂无数据，请导入 data.json 或手动录入</td></tr>'}
+document.getElementById("f").onchange=function(e){var fl=e.target.files[0];if(!fl)return;var rd=new FileReader();
+ rd.onload=function(){try{var j=JSON.parse(rd.result);(j.items||[]).forEach(function(n){var m=D.items.filter(function(x){return x.id==n.id})[0];if(!m){m={id:n.id,name:n.name,rows:[]};D.items.push(m)}
+  (n.rows||[]).forEach(function(r){m.rows=m.rows.filter(function(x){return x.date!=r.date});m.rows.push(r)})});save();render()}catch(x){alert("文件格式不正确")}};rd.readAsText(fl)};
+document.getElementById("add").onclick=function(){var d=document.getElementById("d").value,s=parseFloat(document.getElementById("s").value),g=parseFloat(document.getElementById("g").value);
+ if(!d||!(s>0)||!(g>0)){alert("请填写日期和两个价格");return}var it=D.items[cur];it.rows=it.rows.filter(function(x){return x.date!=d});it.rows.push({date:d,steam:s,igxe:g});save();render()};
+document.getElementById("ex").onclick=function(){var a=document.createElement("a");a.href="data:application/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(D,null,1));a.download="data.json";a.click()};
+document.getElementById("clr").onclick=function(){if(confirm("确定清空？")){D.items.forEach(function(i){i.rows=[]});save();render()}};
+render();
+fetch("data.json?t="+Date.now()).then(function(r){return r.json()}).then(function(j){
+ if(j&&j.items&&j.items.length){D=j;cur=0;render()}}).catch(function(){});
+</script></body></html>
