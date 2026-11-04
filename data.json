@@ -6,8 +6,8 @@
    "rows": [
     {
      "date": "2026-11-04",
-     "steam": null,
-     "igxe": 5.12
+     "steam": 7.18,
+     "igxe": 5.1
     }
    ]
   },
@@ -17,7 +17,7 @@
    "rows": [
     {
      "date": "2026-11-04",
-     "steam": null,
+     "steam": 5.18,
      "igxe": 3.52
     }
    ]
