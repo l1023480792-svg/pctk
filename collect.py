@@ -19,43 +19,43 @@ def num(s):
     return float(m.group().replace(",", "")) if m else None
 
 def steam_price(name):
-    # 方式1: priceoverview
-    r = requests.get("https://steamcommunity.com/market/priceoverview/",
-        params={"appid": 730, "currency": 23, "country": "CN", "market_hash_name": name},
-        headers=H, timeout=20)
-    print("  [steam priceoverview]", r.status_code, r.text[:150])
-    try:
-        d = r.json()
-        if d and d.get("success"):
-            return num(d.get("lowest_price") or d.get("median_price"))
-    except Exception:
-        pass
-    # 方式2: 市场搜索接口
-    r = requests.get("https://steamcommunity.com/market/search/render/",
-        params={"query": name, "appid": 730, "norender": 1, "count": 10, "currency": 23},
-        headers=H, timeout=20)
-    print("  [steam search]", r.status_code, r.text[:150])
-    try:
-        for x in r.json().get("results", []):
-            if x.get("hash_name") == name:
-                return num(x.get("sell_price_text"))
-    except Exception:
-        pass
+    import os, time
+    px = os.environ.get("STEAM_PROXY")
+    proxies = {"http": px, "https": px} if px else None
+    tries = [
+        ("priceoverview", "https://steamcommunity.com/market/priceoverview/",
+         {"appid": 730, "currency": 23, "country": "CN", "market_hash_name": name},
+         lambda d: d.get("success") and num(d.get("lowest_price") or d.get("median_price"))),
+        ("search", "https://steamcommunity.com/market/search/render/",
+         {"query": name, "appid": 730, "norender": 1, "count": 10, "currency": 23},
+         lambda d: next((num(x.get("sell_price_text")) for x in d.get("results", []) if x.get("hash_name") == name), None)),
+    ]
+    for attempt in range(3):
+        for label, url, params, pick in tries:
+            try:
+                r = requests.get(url, params=params, headers=H, timeout=20, proxies=proxies)
+                print("  [steam %s] 第%d次" % (label, attempt + 1), r.status_code, r.text[:100])
+                if r.status_code == 200:
+                    v = pick(r.json() or {})
+                    if v: return v
+            except Exception as e:
+                print("  [steam %s] 异常" % label, e)
+        time.sleep(10 * (attempt + 1))
     return None
 
-def igxe_price(url):
+def igxe_price(url, name):
     html = requests.get(url, headers=H, timeout=20).text
-    # ¥ 后可能隔着标签，小数部分也可能在单独的标签里
-    pat = r"[¥￥]\s*(?:<[^>]*>\s*)*(\d+)(?:\s*(?:<[^>]*>\s*)*(\.\d{1,2}))?"
+    T = r"(?:\s*<[^>]*>\s*)*"
+    pat = r"[¥￥]" + T + r"(\d+)(?:" + T + r"\." + T + r"(\d{1,2}))?"
     ms = list(re.finditer(pat, html))
     print("  [igxe] 页面长度", len(html), "价格匹配数", len(ms))
-    for m in ms[:3]:
-        seg = re.sub(r"\s+", " ", re.sub(r"<[^>]*>", "|", html[max(0, m.start()-120):m.end()+60]))
-        print("   片段:", seg[:200])
-    if not ms:
-        return None
-    m = ms[0]
-    return float(m.group(1) + (m.group(2) or ""))
+    for m in ms:
+        # 只取物品名后面紧跟的价格，跳过无关的 ¥0.00
+        if name in html[max(0, m.start() - 300):m.start()]:
+            v = float(m.group(1) + "." + (m.group(2) or "0"))
+            if v > 0:
+                return v
+    return None
 
 def main():
     data = json.loads(OUT.read_text("utf-8")) if OUT.exists() else {"items": []}
@@ -66,7 +66,7 @@ def main():
         print(it["name"])
         try: s = steam_price(it["steam_name"])
         except Exception as e: s = None; print("  steam fail", e)
-        try: g = igxe_price(it["igxe_url"])
+        try: g = igxe_price(it["igxe_url"], it["name"])
         except Exception as e: g = None; print("  igxe fail", e)
         rec["rows"] = [r for r in rec["rows"] if r["date"] != today] + [{"date": today, "steam": s, "igxe": g}]
         rec["rows"].sort(key=lambda r: r["date"])
